@@ -22,7 +22,9 @@ jobs:
           sudo -E apt-get -qq clean
 
       - name: Clone Source Code
-        run: git clone --depth 1 https://github.com/coolsnowwolf/lede -b openwrt-21.02 openwrt
+        run: |
+          # Lean 的源碼直接用 master 即可，他已經針對 5.10 內核做了深度優化
+          git clone --depth 1 https://github.com/coolsnowwolf/lede openwrt
 
       - name: Update Feeds
         run: |
