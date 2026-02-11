@@ -1,15 +1,15 @@
-name: Build Lean K2P Performance Edition
+name: Build Lean K2P Optimized
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 手動點擊運行
 
 jobs:
   build:
-    runs-on: ubuntu-22.04 # 修正 Runner 環境
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4 # 修正組件版本
+        uses: actions/checkout@v4
 
       - name: Init Environment
         env:
@@ -22,34 +22,32 @@ jobs:
           sudo -E apt-get -qq clean
 
       - name: Clone Source Code
-        run: |
-          # Lean 的源碼直接用 master 即可，他已經針對 5.10 內核做了深度優化
-          git clone --depth 1 https://github.com/coolsnowwolf/lede openwrt
+        run: git clone --depth 1 https://github.com/coolsnowwolf/lede openwrt
 
-      - name: Update Feeds
+      - name: Update Feeds & Add Custom Packages
         run: |
           cd openwrt
+          # 直接在這裡添加插件源，不再依賴外部 diy.sh
+          echo 'src-git small8 https://github.com/kenzok8/small-package' >> feeds.conf.default
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          # 性能優化：強制開啟硬件加速
+          sed -i 's/default n/default y/g' package/lean/shortcut-fe/Makefile
+          # 修改默認 IP 為 192.168.2.1
+          sed -i 's/192.168.1.1/192.168.2.1/g' package/base-files/files/bin/config_generate
 
-      - name: Custom Configuration (diy.sh)
+      - name: Load Config & Make
         run: |
-          chmod +x diy.sh
-          ./diy.sh
-
-      - name: Make Config
-        run: |
-          [ -e K2P.config ] && mv K2P.config openwrt/.config
-          cd openwrt && make defconfig
-
-      - name: Download & Compile
-        run: |
+          # 如果倉庫裡有 K2P.config 就用它，沒有就跳過（由下一步 defconfig 生成默認）
+          [ -e K2P.config ] && cp K2P.config openwrt/.config
           cd openwrt
+          make defconfig
           make download -j$(nproc)
+          # 開始編譯
           make -j$(nproc) || make -j1 V=s
 
       - name: Upload Firmware
-        uses: actions/upload-artifact@v4 # 修正 Artifacts v4
+        uses: actions/upload-artifact@v4
         with:
-          name: K2P-Pure-Performance
+          name: K2P-Final-Firmware
           path: openwrt/bin/targets/ramips/mt7621/*sysupgrade.bin
